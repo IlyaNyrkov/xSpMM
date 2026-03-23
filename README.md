@@ -99,25 +99,25 @@ xSpMM employs an `Executor` pattern to provide a single, consistent C++ API for 
 
 ```mermaid
 graph TD
-    UserCode[User C++ Application] --> MainAPI[include/xspmm/xspmm.hpp<br/>(Main API Surface)]
-    
-    MainAPI --> Dispatcher[src/xspmm.cpp<br/>(Dispatcher - std::shared_ptrExecutor)]
-    
-    Dispatcher -- If CudaExecutor --> CudaBridge[src/cuda/xspmm_bridge.hpp<br/>(NVIDIA Backend Bridge)]
-    Dispatcher -- If HipExecutor --> HipBridge[src/hip/xspmm_bridge.hpp<br/>(AMD Backend Bridge)]
-    Dispatcher -- If CpuExecutor --> CpuClustering[src/cpu/...<br/>(CPU Fallback / Heuristics)]
-    
-    CudaBridge --> CudaMath[src/cuda/unstructured_mtx_mul.cu<br/>(Tier 1 BCSR Math / Tier 2 Pipeline)]
-    CudaBridge --> CudaPerm[src/cuda/mtx_permutation.cu<br/>(NVIDIA apply/unpermute Kernels)]
-    
-    HipBridge --> HipMath[src/hip/unstructured_mtx_mul.hip<br/>(Tier 1 BCSR Math / Tier 2 Pipeline)]
-    HipBridge --> HipPerm[src/hip/mtx_permutation.hip<br/>(AMD apply/unpermute Kernels)]
-    
-    %% Common Kernels referenced by backends
-    CudaMath --> CommonKernels[src/common/...hpp<br/>(spmm_core, permutation_core)]
-    CudaPerm --> CommonKernels
-    HipMath --> CommonKernels
-    HipPerm --> CommonKernels
+  UserCode[User C++ Application] --> MainAPI["include/xspmm/xspmm.hpp<br/>(Main API Surface)"]
+
+  MainAPI --> Dispatcher["src/xspmm.cpp<br/>(Dispatcher - std::shared_ptr Executor)"]
+
+  Dispatcher -- If CudaExecutor --> CudaBridge["src/cuda/xspmm.hpp<br/>(NVIDIA Backend Bridge)"]
+  Dispatcher -- If HipExecutor --> HipBridge["src/hip/xspmm.hpp<br/>(AMD Backend Bridge)"]
+  Dispatcher -- If CpuExecutor --> CpuClustering["src/cpu/...<br/>(CPU Fallback / Heuristics)"]
+
+  CudaBridge --> CudaMath["src/cuda/unstructured_mtx_mul.cu<br/>(Tier 1 BCSR Math / Tier 2 Pipeline)"]
+  CudaBridge --> CudaPerm["src/cuda/mtx_permutation.cu<br/>(NVIDIA apply/unpermute Kernels)"]
+
+  HipBridge --> HipMath["src/hip/unstructured_mtx_mul.hip<br/>(Tier 1 BCSR Math / Tier 2 Pipeline)"]
+  HipBridge --> HipPerm["src/hip/mtx_permutation.hip<br/>(AMD apply/unpermute Kernels)"]
+
+%% Common Kernels referenced by backends
+  CudaMath --> CommonKernels["src/common/...hpp<br/>(spmm_math, permutation)"]
+  CudaPerm --> CommonKernels
+  HipMath --> CommonKernels
+  HipPerm --> CommonKernels
 ```
 ---
 
