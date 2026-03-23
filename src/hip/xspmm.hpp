@@ -1,46 +1,31 @@
 #pragma once
 
 #include <memory>
-#include <vector>
 #include "xspmm/core/executor.hpp"
 #include "xspmm/matrix/csr.hpp"
 #include "xspmm/matrix/bcsr.hpp"
 
 namespace xspmm {
-    namespace hip {
+namespace hip {
 
-        /**
-         * @brief HIP backend entry point for SpMM.
-         * Implemented in spmm_rocwmma.hip
-         */
-        template <typename ValueType, typename IndexType>
-        void spmm(std::shared_ptr<const Executor> exec,
-                  const BCSRMatrix<ValueType, IndexType>& A,
-                  const ValueType* B,
-                  ValueType* C,
-                  IndexType N);
+template <typename InputType, typename OutputType, typename IndexType>
+void spmm(std::shared_ptr<const Executor> exec,
+          const BCSRMatrix<InputType, IndexType>& A,
+          const InputType* B,
+          OutputType* C,
+          IndexType N);
 
-        /**
-         * @brief HIP backend entry point for Jaccard Clustering.
-         * Implemented in clustering_sylos_labini.hip
-         */
-        template <typename ValueType, typename IndexType>
-        void compute_1d_jaccard_clustering(
-            std::shared_ptr<const Executor> exec,
-            const CSRMatrix<ValueType, IndexType>& A,
-            float dist_thresh,
-            IndexType block_width,
-            IndexType* perm_out);
+template <typename ValueType, typename IndexType>
+CSRMatrix<ValueType, IndexType> apply_permutation(std::shared_ptr<const Executor> target_exec,
+                                                    const CSRMatrix<ValueType, IndexType>& A,
+                                                    const IndexType* perm);
 
-        /**
-         * @brief HIP backend entry point for Matrix Permutation.
-         * Implemented in clustering_sylos_labini.hip
-         */
-        template <typename ValueType, typename IndexType>
-        CSRMatrix<ValueType, IndexType> apply_permutation(
-            std::shared_ptr<const Executor> target_exec,
-            const CSRMatrix<ValueType, IndexType>& A,
-            const IndexType* perm);
+template <typename ValueType, typename IndexType>
+void unpermute_dense_matrix(std::shared_ptr<const Executor> exec,
+                            const ValueType* in_matrix,
+                            ValueType* out_matrix,
+                            const IndexType* perm,
+                            IndexType M, IndexType N);
 
-    } // namespace hip
+} // namespace hip
 } // namespace xspmm

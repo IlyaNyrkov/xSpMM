@@ -70,7 +70,33 @@ CSRMatrix<ValueType, IndexType> apply_permutation(
 template CSRMatrix<float, int32_t> apply_permutation<float, int32_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int32_t>&, const int32_t*);
 template CSRMatrix<float, int64_t> apply_permutation<float, int64_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int64_t>&, const int64_t*);
 
-// (Add double or __half instantiations here as needed)
+template <typename ValueType, typename IndexType>
+void unpermute_dense_matrix(std::shared_ptr<const Executor> exec,
+                            const ValueType* in_matrix,
+                            ValueType* out_matrix,
+                            const IndexType* perm,
+                            IndexType M, IndexType N)
+{
+    // AMD CDNA uses 64-thread wavefronts
+    const int WARP_SIZE = 64;
+    int total_warps = M;
+    int threads_per_block = 256;
+
+    // AMD: 256 / 64 = 4 warps per block (NVIDIA is 8)
+    int warps_per_block = threads_per_block / WARP_SIZE;
+
+    // The grid size automatically scales up because warps_per_block is smaller
+    int blocks = (total_warps + warps_per_block - 1) / warps_per_block;
+
+    // Notice the `0, 0` at the end of the launch configuration (required for standard HIP streams)
+    kernels::unpermute_dense_kernel<ValueType, IndexType, WARP_SIZE><<<blocks, threads_per_block, 0, 0>>>(
+        M, N, perm, in_matrix, out_matrix
+    );
+}
+
+// Explicit Instantiations
+template void unpermute_dense_matrix<float, int32_t>(std::shared_ptr<const Executor>, const float*, float*, const int32_t*, int32_t, int32_t);
+template void unpermute_dense_matrix<float, int64_t>(std::shared_ptr<const Executor>, const float*, float*, const int64_t*, int64_t, int64_t);
 
 } // namespace hip
 } // namespace xspmm

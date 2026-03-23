@@ -68,5 +68,21 @@ CSRMatrix<ValueType, IndexType> apply_permutation(
 template CSRMatrix<float, int32_t> apply_permutation<float, int32_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int32_t>&, const int32_t*);
 template CSRMatrix<float, int64_t> apply_permutation<float, int64_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int64_t>&, const int64_t*);
 
+template <typename ValueType, typename IndexType>
+void unpermute_dense_matrix(std::shared_ptr<const Executor> exec,
+                            const ValueType* in_matrix, ValueType* out_matrix,
+                            const IndexType* perm, IndexType M, IndexType N)
+{
+    const int WARP_SIZE = 32;
+    int total_warps = M;
+    int threads_per_block = 256;
+    int warps_per_block = threads_per_block / WARP_SIZE;
+    int blocks = (total_warps + warps_per_block - 1) / warps_per_block;
+
+    kernels::unpermute_dense_kernel<ValueType, IndexType, WARP_SIZE><<<blocks, threads_per_block>>>(
+        M, N, perm, in_matrix, out_matrix
+    );
+}
+
 } // namespace cuda
 } // namespace xspmm

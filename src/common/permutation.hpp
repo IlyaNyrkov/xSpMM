@@ -65,5 +65,47 @@ __global__ void permute_data_kernel(
     }
 }
 
+template <typename ValueType, typename IndexType>
+__global__ void unpermute_dense_kernel(
+        IndexType M, IndexType N,
+        const IndexType* perm,
+        const ValueType* in_matrix,
+        ValueType* out_matrix)
+    {
+        IndexType row = blockIdx.x * blockDim.x + threadIdx.x;
+        IndexType col = blockIdx.y * blockDim.y + threadIdx.y;
+
+        if (row < M && col < N) {
+            IndexType original_row = perm[row];
+            // Read from the scrambled temp matrix, write to the correct row in the final matrix
+            out_matrix[original_row * N + col] = in_matrix[row * N + col];
+        }
+    }
+
+    // -------------------------------------------------------------------------------------------------
+    // Un-permute a dense matrix (P_inv * C_temp)
+    // Maps 1 Warp to 1 Row for perfectly coalesced memory access
+    // -------------------------------------------------------------------------------------------------
+template <typename ValueType, typename IndexType, int WARP_SIZE>
+__global__ void unpermute_dense_kernel(
+        IndexType M, IndexType N,
+        const IndexType* perm,
+        const ValueType* in_matrix,
+        ValueType* out_matrix)
+{
+    IndexType warp_id = (blockIdx.x * blockDim.x + threadIdx.x) / WARP_SIZE;
+    int lane_id = threadIdx.x % WARP_SIZE;
+
+    if (warp_id < M) {
+        IndexType row = warp_id;
+        IndexType original_row = perm[row];
+
+        // The entire warp collaboratively copies the row
+        for (IndexType col = lane_id; col < N; col += WARP_SIZE) {
+            out_matrix[original_row * N + col] = in_matrix[row * N + col];
+        }
+    }
+}
+
 } // namespace kernels
 } // namespace xspmm
