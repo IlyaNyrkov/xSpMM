@@ -116,14 +116,17 @@ void spmm(std::shared_ptr<const Executor> exec,
     const int BM = 16, BN = 16, BK = 16;
     IndexType num_block_cols_b = (N + BN - 1) / BN;
 
-    // AMD Specific Tuning
-    int threads_per_block = 64; // 1 Wavefront
+    int threads_per_block = 256;
+
+    int warps_per_block = threads_per_block / 64; // 4 Wavefronts on AMD
+
     dim3 block(threads_per_block);
-    dim3 grid(num_block_cols_b, num_block_rows_a);
+
+    dim3 grid((num_block_cols_b + warps_per_block - 1) / warps_per_block, num_block_rows_a);
 
     kernels::bcsr_spmm_core_kernel<InputType, OutputType, IndexType, BM, BN, BK><<<grid, block, 0, 0>>>(
         A.get_bcsr_row_ptr(), A.get_bcsr_col_ind(), A.get_bcsr_values(),
-        B, C, num_block_rows_a, num_block_cols_b, N, N
+        B, C, num_block_rows_a, num_block_cols_b, N, N, warps_per_block
     );
 }
 
