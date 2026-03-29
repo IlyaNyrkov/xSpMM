@@ -3,13 +3,36 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#include <string>
 
 #ifdef XSPMM_ENABLE_CUDA
 #include <cuda_runtime.h>
+
+#define XSPMM_CUDA_CHECK(call) \
+    do { \
+        cudaError_t err = call; \
+        if (err != cudaSuccess) { \
+            throw std::runtime_error(std::string("CUDA Error: ") + \
+                                     cudaGetErrorString(err) + " at " + \
+                                     __FILE__ + ":" + std::to_string(__LINE__)); \
+        } \
+    } while (0)
+
 #endif
 
 #ifdef XSPMM_ENABLE_HIP
 #include <hip/hip_runtime.h>
+
+#define XSPMM_HIP_CHECK(call) \
+    do { \
+        hipError_t err = call; \
+        if (err != hipSuccess) { \
+            throw std::runtime_error(std::string("HIP Error: ") + \
+                                     hipGetErrorString(err) + " at " + \
+                                     __FILE__ + ":" + std::to_string(__LINE__)); \
+        } \
+    } while (0)
+
 #endif
 
 namespace xspmm {
@@ -55,45 +78,33 @@ void CpuExecutor::synchronize() const {
 #ifdef XSPMM_ENABLE_CUDA
 
 CudaExecutor::CudaExecutor(int device_id) : device_id_(device_id) {
-    if (cudaSetDevice(device_id_) != cudaSuccess) {
-        throw std::runtime_error("CUDA: Failed to set device.");
-    }
+    XSPMM_CUDA_CHECK(cudaSetDevice(device_id_));
 }
 
 CudaExecutor::~CudaExecutor() = default;
 
 void CudaExecutor::allocate(void** ptr, size_t bytes) const {
-    if (cudaMalloc(ptr, bytes) != cudaSuccess) {
-        throw std::bad_alloc();
-    }
+    XSPMM_CUDA_CHECK(cudaMalloc(ptr, bytes));
 }
 
 void CudaExecutor::free(void* ptr) const {
-    cudaFree(ptr);
+    XSPMM_CUDA_CHECK(cudaFree(ptr));
 }
 
 void CudaExecutor::copy_from_host(void* device_dst, const void* host_src, size_t bytes) const {
-    if (cudaMemcpy(device_dst, host_src, bytes, cudaMemcpyHostToDevice) != cudaSuccess) {
-        throw std::runtime_error("CUDA: Memcpy HostToDevice failed.");
-    }
+    XSPMM_CUDA_CHECK(cudaMemcpy(device_dst, host_src, bytes, cudaMemcpyHostToDevice));
 }
 
 void CudaExecutor::copy_to_host(void* host_dst, const void* device_src, size_t bytes) const {
-    if (cudaMemcpy(host_dst, device_src, bytes, cudaMemcpyDeviceToHost) != cudaSuccess) {
-        throw std::runtime_error("CUDA: Memcpy DeviceToHost failed.");
-    }
+    XSPMM_CUDA_CHECK(cudaMemcpy(host_dst, device_src, bytes, cudaMemcpyDeviceToHost));
 }
 
 void CudaExecutor::copy_device_to_device(void* dst, const void* src, size_t bytes) const {
-    if (cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice) != cudaSuccess) {
-        throw std::runtime_error("CUDA: Memcpy DeviceToDevice failed.");
-    }
+    XSPMM_CUDA_CHECK(cudaMemcpy(dst, src, bytes, cudaMemcpyDeviceToDevice));
 }
 
 void CudaExecutor::synchronize() const {
-    if (cudaDeviceSynchronize() != cudaSuccess) {
-        throw std::runtime_error("CUDA: Device synchronize failed.");
-    }
+    XSPMM_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
 #else // Stubs if CUDA is not enabled
@@ -117,49 +128,36 @@ void CudaExecutor::synchronize() const {}
 #ifdef XSPMM_ENABLE_HIP
 
 HipExecutor::HipExecutor(int device_id) : device_id_(device_id) {
-    if (hipSetDevice(device_id_) != hipSuccess) {
-        throw std::runtime_error("HIP: Failed to set device.");
-    }
+    XSPMM_HIP_CHECK(hipSetDevice(device_id_));
 }
 
 HipExecutor::~HipExecutor() = default;
 
 void HipExecutor::allocate(void** ptr, size_t bytes) const {
-    if (hipMalloc(ptr, bytes) != hipSuccess) {
-        throw std::bad_alloc();
-    }
+    XSPMM_HIP_CHECK(hipMalloc(ptr, bytes));
 }
 
 void HipExecutor::free(void* ptr) const {
-    (void)hipFree(ptr);
+    XSPMM_HIP_CHECK(hipFree(ptr));
 }
 
 void HipExecutor::copy_from_host(void* device_dst, const void* host_src, size_t bytes) const {
-    if (hipMemcpy(device_dst, host_src, bytes, hipMemcpyHostToDevice) != hipSuccess) {
-        throw std::runtime_error("HIP: Memcpy HostToDevice failed.");
-    }
+    XSPMM_HIP_CHECK(hipMemcpy(device_dst, host_src, bytes, hipMemcpyHostToDevice));
 }
 
 void HipExecutor::copy_to_host(void* host_dst, const void* device_src, size_t bytes) const {
-    if (hipMemcpy(host_dst, device_src, bytes, hipMemcpyDeviceToHost) != hipSuccess) {
-        throw std::runtime_error("HIP: Memcpy DeviceToHost failed.");
-    }
+    XSPMM_HIP_CHECK(hipMemcpy(host_dst, device_src, bytes, hipMemcpyDeviceToHost));
 }
 
 void HipExecutor::copy_device_to_device(void* dst, const void* src, size_t bytes) const {
-    if (hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice) != hipSuccess) {
-        throw std::runtime_error("HIP: Memcpy DeviceToDevice failed.");
-    }
+    XSPMM_HIP_CHECK(hipMemcpy(dst, src, bytes, hipMemcpyDeviceToDevice));
 }
 
 void HipExecutor::synchronize() const {
-    if (hipDeviceSynchronize() != hipSuccess) {
-        throw std::runtime_error("HIP: Device synchronize failed.");
-    }
+    XSPMM_HIP_CHECK(hipDeviceSynchronize());
 }
 
 #else // Stubs if HIP is not enabled
-
 HipExecutor::HipExecutor(int) { throw std::runtime_error("xSpMM was not compiled with HIP support."); }
 HipExecutor::~HipExecutor() = default;
 void HipExecutor::allocate(void**, size_t) const {}

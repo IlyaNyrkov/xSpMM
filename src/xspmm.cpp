@@ -98,6 +98,10 @@ CSRMatrix<ValueType, IndexType> apply_permutation(
 // EXPLICIT TEMPLATE INSTANTIATIONS
 // =================================================================================================
 
+
+template void spmm<float, float, int32_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int32_t>&, const float*, float*, int32_t, int32_t, bool, SpMMTimings*);
+template void spmm<float, float, int64_t>(std::shared_ptr<const Executor>, const CSRMatrix<float, int64_t>&, const float*, float*, int64_t, int64_t, bool, SpMMTimings*);
+
 // --- SpMM Math ---
 template void spmm<float, float, int32_t>(const BCSRMatrix<float, int32_t>&, const float*, float*, int32_t);
 template void spmm<float, float, int64_t>(const BCSRMatrix<float, int64_t>&, const float*, float*, int64_t);

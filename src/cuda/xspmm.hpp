@@ -5,6 +5,8 @@
 #include "xspmm/core/executor.hpp"
 #include "xspmm/matrix/csr.hpp"
 #include "xspmm/matrix/bcsr.hpp"
+#include "xspmm/core/timings.hpp"
+
 
 namespace xspmm {
 namespace cuda {
@@ -19,7 +21,12 @@ void spmm(std::shared_ptr<const Executor> exec,
           OutputType* C,
           IndexType N);
 
-
+template <typename InputType, typename OutputType, typename IndexType>
+void spmm(std::shared_ptr<const Executor> exec,
+          const CSRMatrix<InputType, IndexType>& A,
+          const InputType* B, OutputType* C,
+          IndexType N, IndexType hw_block_size,
+          bool optimize_pattern, SpMMTimings* timings);
 /**
  * @brief CUDA backend entry point for Matrix Permutation.
  * Implemented in clustering_sylos_labini.cu

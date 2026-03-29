@@ -40,65 +40,60 @@ void spmm(std::shared_ptr<const Executor> exec,
 
     IndexType M = A.get_num_rows();
 
-    // Setup pointers and active references
-    IndexType* d_perm = nullptr;
-    OutputType* d_C_temp = nullptr;
-
-    // Default to the original matrix unless optimization is enabled
-    const CSRMatrix<InputType, IndexType>* active_A = &A;
-    std::optional<CSRMatrix<InputType, IndexType>> A_opt;
-
-    // -------------------------------------------------------------------------
-    // Optional Stage: Clustering & Permutation
-    // -------------------------------------------------------------------------
     if (optimize_pattern) {
+        // --- PATH A: WITH CLUSTERING ---
+
         // 1. Clustering
         if (timings) t_step.record_start();
-        exec->allocate(reinterpret_cast<void**>(&d_perm), M * sizeof(IndexType));
-        compute_1d_jaccard_clustering(exec, A, 0.5f, hw_block_size, d_perm);
+        IndexType* d_perm = nullptr;
+        exec->allocate(reinterpret_cast<void**>(&d_perm), (size_t)M * sizeof(IndexType));
+        xspmm::compute_1d_jaccard_clustering(exec, A, 0.5f, hw_block_size, d_perm);
         if (timings) timings->clustering_ms = t_step.record_stop_and_get_ms();
 
-        // 2. Permutation
+        // 2. Permutation (RVO guarantees safe memory transfer!)
         if (timings) t_step.record_start();
-        A_opt = xspmm::hip::apply_permutation(exec, A, d_perm);
-        active_A = &A_opt.value(); // Re-route the active pointer to the optimized matrix
+        auto A_opt = xspmm::apply_permutation(exec, A, d_perm);
         if (timings) timings->permutation_ms = t_step.record_stop_and_get_ms();
 
-        // Allocate a temporary buffer for C because the output will be scrambled
-        exec->allocate(reinterpret_cast<void**>(&d_C_temp), M * N * sizeof(OutputType));
-    }
+        // 3. Conversion
+        if (timings) t_step.record_start();
+        auto A_bcsr = xspmm::csr_to_bcsr(exec, A_opt, hw_block_size, hw_block_size);
+        if (timings) timings->conversion_ms = t_step.record_stop_and_get_ms();
 
-    // -------------------------------------------------------------------------
-    // Core Pipeline: Conversion & Math (Executed regardless of optimization)
-    // -------------------------------------------------------------------------
+        // 4. Matrix Math
 
-    // 3. Conversion
-    if (timings) t_step.record_start();
-    auto A_bcsr = csr_to_bcsr(exec, *active_A, hw_block_size, hw_block_size);
-    if (timings) timings->conversion_ms = t_step.record_stop_and_get_ms();
+        OutputType* d_C_temp = nullptr;
+        exec->allocate(reinterpret_cast<void**>(&d_C_temp), (size_t)M * (size_t)N * sizeof(OutputType));
 
-    // 4. Matrix Math
-    if (timings) t_step.record_start();
-    // Route output to d_C_temp if permuted, otherwise directly to the user's C buffer
-    OutputType* target_C = optimize_pattern ? d_C_temp : C;
+        hipError_t eMem = hipMemset(d_C_temp, 0, (size_t)M * (size_t)N * sizeof(OutputType)); (void)eMem;
 
-    // Native hardware zeroing for clean accumulator states
-    hipMemset(target_C, 0, M * N * sizeof(OutputType));
+        if (timings) t_step.record_start();
+        spmm(exec, A_bcsr, B, d_C_temp, N); // Call Tier 1
+        if (timings) timings->spmm_ms = t_step.record_stop_and_get_ms();
 
-    spmm(exec, A_bcsr, B, target_C, N); // Call the Tier 1 Expert API
-    if (timings) timings->spmm_ms = t_step.record_stop_and_get_ms();
-
-    // -------------------------------------------------------------------------
-    // Optional Stage: Un-Permutation & Cleanup
-    // -------------------------------------------------------------------------
-    if (optimize_pattern) {
         // 5. Un-Permute
         if (timings) t_step.record_start();
         xspmm::hip::unpermute_dense_matrix(exec, d_C_temp, C, d_perm, M, N);
         if (timings) timings->unpermutation_ms = t_step.record_stop_and_get_ms();
 
+        // Cleanup
         exec->free(d_perm);
         exec->free(d_C_temp);
+
+    } else {
+        // --- PATH B: NO CLUSTERING (Direct Fallback) ---
+
+        // 3. Conversion
+        if (timings) t_step.record_start();
+        auto A_bcsr = xspmm::csr_to_bcsr(exec, A, hw_block_size, hw_block_size);
+        if (timings) timings->conversion_ms = t_step.record_stop_and_get_ms();
+
+        // 4. Matrix Math
+        if (timings) t_step.record_start();
+        hipError_t eMem = hipMemset(C, 0, (size_t)M * (size_t)N * sizeof(OutputType)); (void)eMem;
+
+        spmm(exec, A_bcsr, B, C, N); // Call Tier 1
+        if (timings) timings->spmm_ms = t_step.record_stop_and_get_ms();
     }
 
     if (timings) timings->total_pipeline_ms = t_total.record_stop_and_get_ms();

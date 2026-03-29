@@ -2,21 +2,10 @@
 
 #include "xspmm/matrix/csr.hpp"
 #include "xspmm/matrix/bcsr.hpp"
+#include "xspmm/core/timings.hpp"
 #include <memory>
 
 namespace xspmm {
-
-// =================================================================================================
-// Struct to hold pipeline benchmarking data
-// =================================================================================================
-struct SpMMTimings {
-    double clustering_ms = 0.0;
-    double permutation_ms = 0.0;
-    double conversion_ms = 0.0;
-    double spmm_ms = 0.0;
-    double unpermutation_ms = 0.0;
-    double total_pipeline_ms = 0.0;
-};
 
 // =================================================================================================
 // TIER 1: The Expert API (What we already built)
