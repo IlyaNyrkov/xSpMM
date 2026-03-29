@@ -88,3 +88,21 @@ if(XSPMM_ENABLE_HIP)
     # Link rocSPARSE and rocBLAS
     target_link_libraries(05_core_spmm_benchmark PRIVATE roc::rocsparse roc::rocblas)
 endif()
+
+add_executable(06_bad_col_lengths 06_bad_col_lengths.cpp)
+target_link_libraries(06_bad_col_lengths PRIVATE xspmm xspmm_utils)
+
+if(XSPMM_ENABLE_CUDA)
+    target_compile_definitions(06_bad_col_lengths PRIVATE XSPMM_ENABLE_CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    # Link cuSPARSE and cuBLAS
+    target_link_libraries(06_bad_col_lengths PRIVATE CUDA::cusparse CUDA::cublas)
+endif()
+
+if(XSPMM_ENABLE_HIP)
+    target_compile_definitions(06_bad_col_lengths PRIVATE XSPMM_ENABLE_HIP)
+    find_package(rocsparse REQUIRED)
+    find_package(rocblas REQUIRED)
+    # Link rocSPARSE and rocBLAS
+    target_link_libraries(06_bad_col_lengths PRIVATE roc::rocsparse roc::rocblas)
+endif()

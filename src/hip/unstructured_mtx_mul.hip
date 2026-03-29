@@ -116,18 +116,33 @@ void spmm(std::shared_ptr<const Executor> exec,
     const int BM = 16, BN = 16, BK = 16;
     IndexType num_block_cols_b = (N + BN - 1) / BN;
 
-    int threads_per_block = 256;
+    // Helper lambda to dispatch template arguments
+    auto launch_kernel = [&](auto warps_const, auto is_clean_const) {
+        constexpr int WARPS = decltype(warps_const)::value;
+        constexpr bool IS_CLEAN = decltype(is_clean_const)::value;
+        constexpr int threads = WARPS * HW_WARP_SIZE;
 
-    int warps_per_block = threads_per_block / 64; // 4 Wavefronts on AMD
+        dim3 block(threads);
+        dim3 grid((num_block_cols_b + WARPS - 1) / WARPS, num_block_rows_a);
 
-    dim3 block(threads_per_block);
+        kernels::bcsr_spmm_core_kernel<InputType, OutputType, IndexType, BM, BN, BK, WARPS, IS_CLEAN><<<grid, block, 0, 0>>>(
+            A.get_bcsr_row_ptr(), A.get_bcsr_col_ind(), A.get_bcsr_values(),
+            B, C, num_block_rows_a, num_block_cols_b, N, N
+        );
+    };
 
-    dim3 grid((num_block_cols_b + warps_per_block - 1) / warps_per_block, num_block_rows_a);
+    bool clean_multiple = (N % 16 == 0);
 
-    kernels::bcsr_spmm_core_kernel<InputType, OutputType, IndexType, BM, BN, BK><<<grid, block, 0, 0>>>(
-        A.get_bcsr_row_ptr(), A.get_bcsr_col_ind(), A.get_bcsr_values(),
-        B, C, num_block_rows_a, num_block_cols_b, N, N, warps_per_block
-    );
+    if (clean_multiple) {
+        if (N <= 16) launch_kernel(std::integral_constant<int, 1>{}, std::true_type{});
+        else if (N <= 32) launch_kernel(std::integral_constant<int, 2>{}, std::true_type{});
+        else launch_kernel(std::integral_constant<int, 4>{}, std::true_type{});
+    } else {
+        if (N <= 16) launch_kernel(std::integral_constant<int, 1>{}, std::false_type{});
+        else if (N <= 32) launch_kernel(std::integral_constant<int, 2>{}, std::false_type{});
+        else launch_kernel(std::integral_constant<int, 4>{}, std::false_type{});
+    }
+
 }
 
 // Explicit Instantiations

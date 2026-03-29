@@ -69,8 +69,8 @@ int main() {
         float density;
     };
     std::vector<TestRegime> regimes = {
-        {"Peak Compute (90.0%)", 0.90f},
-        {"Peak Compute 2.0 (50.0%)", 0.50f},
+        {"Peak Compute 2.0 (90.0%)", 0.90f},
+        {"Peak Compute 3.0 (50.0%)", 0.50f},
         {"Latency Hiding   (5.0%)", 0.05f},
         {"Memory Efficiency (0.5%)", 0.005f},
         {"Memory Efficiency 2.0 (0.1%)", 0.001f},
